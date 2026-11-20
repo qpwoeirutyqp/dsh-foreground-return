@@ -1,7 +1,7 @@
 {
   "name": "dsh-foreground-return",
   "description": "DSHA plugin: when a background turn finishes, force the DSHA window back to the foreground",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -16,7 +16,6 @@
     "CHANGELOG.md",
     "LICENSE",
     "index.js",
-    "foreground-package.js",
     "bridge-port.cjs",
     "cordis.patch.yml",
     "locale/*.json",

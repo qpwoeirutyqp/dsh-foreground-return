@@ -111,52 +111,6 @@ plugin_manager
 | `attempts` | `3` | launch 尝试次数（1–6） |
 | `retryDelayMs` | `600` | 每次尝试之间的等待 |
 | `verbose` | `false` | 打印每次判定日志 |
-| `allowForegroundPackages` | `[]` | 前台应用白名单，空 = 不启用。支持尾部通配 |
-| `allowWhenUnknown` | `true` | 前台包名读不出来时是否仍放行 |
-| `denyForegroundPackages` | `[]` | 前台应用黑名单，优先级高于白名单 |
-
-### 前台应用白名单
-
-「我在用什么应用的时候，才允许它把手机抢回来。」
-
-不配就是原来的行为——不管你正在干什么，任务一完就把 DSHA 拉出来。配了之后，
-只有**当前前台的包名命中名单**才拉；你在写文档、开会、录音时它就不动你的屏。
-
-```yaml
-- id: foreground-return
-  config:
-    allowForegroundPackages:
-      - com.tencent.mm          # 微信
-      - com.ss.android.ugc.aweme # 抖音（精确包名）
-      - com.tencent.*            # 腾讯全家桶（尾部通配）
-    denyForegroundPackages:
-      - com.tencent.mm            # 例外：我在微信里开会时别动
-      - com.android.camera        # 拍照/录像时别动
-```
-
-规则细节：
-
-| 写法 | 匹配 |
-|---|---|
-| `com.tencent.mm` | 只匹配这个包 |
-| `com.tencent.*` | 匹配 `com.tencent.` 开头的一切 |
-| `com.*` | 匹配所有 `com.` 开头（几乎等于全放行） |
-
-**黑名单压过白名单。** 一个包同时出现在两个名单里，按黑名单处理。
-
-**读不出前台应用时**（没开 Shizuku / ADB / root，`dumpsys` 跑不了）：
-默认 `allowWhenUnknown: true` 放行——宁可多拉一次，也不要静默失效。
-想严格一点就设为 `false`，此时白名单判定失败即视为拒绝，`report.reason` 会是
-`whitelist-unknown`。
-
-判定结果会如实写进 `report`：
-
-```json
-{"gate":"denied","foregroundPackage":"com.android.settings",
- "reason":"not-whitelisted","attempted":false}
-```
-
-`gate` 取值 `allow` / `denied`；`reason` 可能是 `not-whitelisted` 或 `blacklisted`。
 
 例：
 
@@ -186,8 +140,6 @@ curl -s http://127.0.0.1:3080/__dsha_foreground_return
   "launched": true,
   "foregroundBefore": false,
   "foregroundAfter": true,
-  "foregroundPackage": "com.tencent.mm",
-  "gate": "allow",
   "tries": 1,
   "reason": "foreground"
 }
@@ -201,9 +153,6 @@ curl -s http://127.0.0.1:3080/__dsha_foreground_return
 | `foreground` | 成功拉回前台 |
 | `still-background` | 试过上限次数，仍在后台（多半是系统省电策略拦截） |
 | `unverified` | 前台状态读不出来，已尽力 |
-| `not-whitelisted` | 当前前台应用不在白名单，主动放弃 |
-| `blacklisted` | 当前前台应用在黑名单，主动放弃 |
-| `whitelist-unknown` | 读不出前台应用，且 `allowWhenUnknown: false` |
 | `bridge-unavailable` | 桥 token / 端口不可用 |
 | `launch-failed` | 桥拒绝了 launch 请求 |
 
@@ -223,11 +172,6 @@ dsh 判定入口没激活就可能把整棵插件树拖挂，Web 直接打不开
 **凭据只进请求头。** token 走 `X-Token`，不拼 URL、不进命令行；桥端口每次现读、不缓存、
 不回退固定端口（同机可能有另一个 DSHA 安装，猜端口等于把 token 送给别人）。
 
-**白名单靠 `dumpsys` 读前台包名。** 桥只给 `app_foreground` 布尔值，问不出"是哪个应用"，
-所以白名单判定走设备 shell 的 `dumpsys activity activities`（约 1.5 秒）。
-这需要 Shizuku / ADB / root 任一通道；读不出来时按 `allowWhenUnknown` 决策，不猜。
-只在配了名单时才付这个代价——没配名单直接跳过，一次查询都不发。
-
 **一个异常都不许冒出去。** 这是「顺手提醒」级别的功能，绝不能影响 Agent 跑任务。
 所有 IO 与解析全部包在 `try/catch` 里。
 
@@ -237,9 +181,6 @@ dsh 判定入口没激活就可能把整棵插件树拖挂，Web 直接打不开
 
 - vivo / 部分国产 ROM 的深度省电策略可能拒绝后台拉起，会如实返回 `still-background`。
   把 DSHA 加进后台高耗电白名单即可。
-- 白名单要读前台包名，依赖 Shizuku / ADB / root 任一通道；只有无障碍可用时读不出来，
-  此时按 `allowWhenUnknown` 处理。
-- 前台包名在 launch 前后各查一次会产生约 1.5 秒额外延迟——但只在配了名单时。
 - 只处理 turn 结束。如果你的任务需要中途提醒，那是另一个功能（通知栏胶囊已经在别处做了）。
 
 ---

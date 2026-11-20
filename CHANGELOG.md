@@ -1,14 +1,5 @@
 # 更新记录
 
-## 0.2.0
-
-- 新增前台应用白名单 `allowForegroundPackages`：只在指定的 App 前台时才抢屏，支持尾部通配
-- 新增前台应用黑名单 `denyForegroundPackages`，优先级高于白名单
-- 新增 `allowWhenUnknown`：前台包名读不出来时的降级策略，默认放行
-- `report` 增加 `gate` 与 `foregroundPackage` 字段，判定过程可复查
-- 新增 `foreground-package.js`：前台包名解析与包名匹配，独立可测
-- 单测从 7 个扩到 25 个，覆盖解析、通配、名单优先级与降级路径
-
 ## 0.1.0
 
 首个版本。
