@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Background return",
+    "description": "Brings the DSHA window back to the foreground when a background turn finishes; scoped to background runs, with optional triggers for completion or abort."
+  }
+}

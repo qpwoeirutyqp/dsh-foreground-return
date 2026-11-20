@@ -1,0 +1,4 @@
+# DSHA 后台任务回前台 bundle patch：注册 server 插件，turn 结束 → 把 DSHA 提到前台
+- insert:
+    - id: foreground-return
+      name: 'dsh-foreground-return'

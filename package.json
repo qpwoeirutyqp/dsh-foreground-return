@@ -1,0 +1,42 @@
+{
+  "name": "dsh-foreground-return",
+  "description": "DSHA plugin: when a background turn finishes, force the DSHA window back to the foreground",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "README.md",
+    "LICENSE",
+    "index.js",
+    "bridge-port.cjs",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "dsha",
+    "android",
+    "foreground"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
