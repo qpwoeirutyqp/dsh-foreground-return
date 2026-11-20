@@ -13,6 +13,7 @@
   },
   "files": [
     "README.md",
+    "CHANGELOG.md",
     "LICENSE",
     "index.js",
     "bridge-port.cjs",
@@ -38,5 +39,13 @@
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/qpwoeirutyqp/dsh-foreground-return.git"
+  },
+  "homepage": "https://github.com/qpwoeirutyqp/dsh-foreground-return#readme",
+  "bugs": {
+    "url": "https://github.com/qpwoeirutyqp/dsh-foreground-return/issues"
   }
 }

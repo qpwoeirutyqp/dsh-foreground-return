@@ -33,20 +33,65 @@
 
 ## 安装
 
-在 DSH 里装 bundle：
+### 方式一：从 GitHub 直接装（推荐）
+
+在 DSH 里装 bundle，`target` 直接给仓库地址：
 
 ```text
-plugin_manager install_bundle  target=/absolute/path/to/dsh-foreground-return
+plugin_manager
+  action: install_bundle
+  target: github:qpwoeirutyqp/dsh-foreground-return
 ```
 
-或者手动把它加进 profile 的 `package.json` 依赖，再列进 `dsh.profile.bundles`。
+或者用 git 地址：
+
+```text
+plugin_manager
+  action: install_bundle
+  target: https://github.com/qpwoeirutyqp/dsh-foreground-return.git
+```
+
 装好后插件立刻 active，不用重启 dsh。
+
+### 方式二：本地目录
+
+先把仓库克隆下来：
+
+```bash
+git clone https://github.com/qpwoeirutyqp/dsh-foreground-return.git
+```
+
+然后把**绝对路径**交给 `install_bundle`：
+
+```text
+plugin_manager
+  action: install_bundle
+  target: /absolute/path/to/dsh-foreground-return
+```
+
+### 方式三：手动改 profile
+
+把包加进 profile 的 `package.json` 依赖，再列进 `dsh.profile.bundles`：
+
+```json
+{
+  "dependencies": {
+    "dsh-foreground-return": "github:qpwoeirutyqp/dsh-foreground-return"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": ["...", "dsh-foreground-return"]
+    }
+  }
+}
+```
 
 ### 环境要求
 
 - DSH 0.2.2 及以上
 - DSHA Android 客户端，桥协议 3（`/app/device`、`/app/launch` 可用）
 - 插件跑在 DSH 宿主进程里，读 `/root/.dsh/.bridge_token` 与 `.bridge_port` 调本机桥
+- Node 20 及以上
 
 ---
 
