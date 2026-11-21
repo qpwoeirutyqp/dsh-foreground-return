@@ -28,6 +28,7 @@
 import { readFile } from 'node:fs/promises'
 import z from '@deepseek-ai/schemastery'
 import bridgePort from './bridge-port.cjs'
+import { currentForegroundPackage, matchPackages } from './foreground-package.js'
 
 export const name = 'dsh-foreground-return'
 
@@ -63,7 +64,22 @@ export const Config = z.object({
   attempts: z.natural().min(1).max(6).default(3),
   retryDelayMs: z.natural().default(600),
   /** 每次判定都打日志；默认只在真正拉回时打一行。 */
-  verbose: z.boolean().default(false)
+  verbose: z.boolean().default(false),
+  /**
+   * 白名单：只有这些应用在前台时才抢屏。
+   *
+   * 空数组 = 白名单关闭（任何应用在前台都拉），保持旧行为。
+   * 填入后支持精确包名与尾部通配，例如 ["com.tencent.mm", "com.tencent.*"]。
+   * 典型用法：只在刷微信/看视频时把手机抢回来，但你在写文档、开会、录音时不要动你的屏。
+   *
+   * 判据是「当前前台是哪个应用」，靠 dumpsys 读，需要 Shizuku / ADB / root 任一通道；
+   * 读不出来时按 allowWhenUnknown 决定，默认放行（宁可拉一次，也不要静默失效）。
+   */
+  allowForegroundPackages: z.array(z.string()).default([]),
+  /** 前台包名读不出来（无 shell 通道）时是否仍按白名单放行。 */
+  allowWhenUnknown: z.boolean().default(true),
+  /** 反向名单：这些应用在前台时永不抢屏，优先级高于白名单。 */
+  denyForegroundPackages: z.array(z.string()).default([])
 })
 
 function sleep(ms) {
@@ -109,19 +125,29 @@ async function requestLaunch(packageName) {
 }
 
 /**
- * 拉回前台的完整动作：判后台 → launch → 回读 → 没到就重试。
+ * 拉回前台的完整动作：判后台 → 查白名单 → launch → 回读 → 没到就重试。
  * 返回结构化结果，端点和日志共用同一份事实。
  */
 export async function bringToFront(options) {
   const report = {
     attempted: false, launched: false,
     foregroundBefore: undefined, foregroundAfter: undefined,
+    foregroundPackage: undefined, gate: '',
     tries: 0, reason: ''
   }
   report.foregroundBefore = await foregroundState()
 
   if (options.onlyWhenBackground && report.foregroundBefore === true) {
     report.reason = 'already-foreground'
+    return report
+  }
+
+  // 白名单判定：只有确实在后台时才需要知道"现在是哪个应用"。
+  const gate = await foregroundGate(options)
+  report.gate = gate.verdict
+  report.foregroundPackage = gate.packageName
+  if (gate.verdict === 'denied') {
+    report.reason = gate.reason
     return report
   }
 
@@ -147,6 +173,47 @@ export async function bringToFront(options) {
   return report
 }
 
+/**
+ * 前台应用白/黑名单判定。
+ *
+ * 三个结论：
+ *   allow   — 放行（没配白名单 / 命中白名单 / 读不出来但 allowWhenUnknown）
+ *   denied  — 不抢屏，reason 说明是命中黑名单还是不在白名单
+ * 黑名单优先级高于白名单：同一个人在写文档、开录音时，绝不能被抢屏。
+ */
+export async function foregroundGate(options) {
+  const allow = Array.isArray(options.allowForegroundPackages) ? options.allowForegroundPackages : []
+  const deny = Array.isArray(options.denyForegroundPackages) ? options.denyForegroundPackages : []
+  const hasAllow = allow.length > 0
+  const hasDeny = deny.length > 0
+  if (!hasAllow && !hasDeny) return { verdict: 'allow', packageName: undefined, reason: '' }
+
+  const packageName = await currentForegroundPackage({ shellPath: options.shellPath })
+  if (packageName === undefined) {
+    // 读不出前台应用（没开 Shizuku/ADB/root）。黑名单此时无从判断，只能退回放行；
+    // 白名单则按配置决定，默认放行——宁可拉一次，也不要静默失效。
+    return options.allowWhenUnknown === false
+      ? { verdict: 'denied', packageName: undefined, reason: 'whitelist-unknown' }
+      : { verdict: 'allow', packageName: undefined, reason: '' }
+  }
+  if (matchPackages(deny, packageName) === true) {
+    return { verdict: 'denied', packageName, reason: 'blacklisted' }
+  }
+  if (hasAllow && matchPackages(allow, packageName) !== true) {
+    return { verdict: 'denied', packageName, reason: 'not-whitelisted' }
+  }
+  return { verdict: 'allow', packageName, reason: '' }
+}
+
+/** 把一条字符串列表收敛成干净的包名规则；非数组、非字符串、空串全部丢掉。 */
+function packageRules(value) {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter(rule => typeof rule === 'string')
+    .map(rule => rule.trim())
+    .filter(rule => rule !== '')
+}
+
 /** 把 patch 的 config 收敛成一份已校验的运行时选项。 */
 export function normalizeConfig(config) {
   return {
@@ -160,7 +227,13 @@ export function normalizeConfig(config) {
     onAborted: config?.onAborted === true,
     attempts: Number.isSafeInteger(config?.attempts) ? Math.min(6, Math.max(1, config.attempts)) : 3,
     retryDelayMs: Number.isSafeInteger(config?.retryDelayMs) && config.retryDelayMs >= 0 ? config.retryDelayMs : 600,
-    verbose: config?.verbose === true
+    verbose: config?.verbose === true,
+    allowForegroundPackages: packageRules(config?.allowForegroundPackages),
+    allowWhenUnknown: config?.allowWhenUnknown !== false,
+    denyForegroundPackages: packageRules(config?.denyForegroundPackages),
+    /** 仅供测试注入别的执行器；不写就自动挑 adb-shell 或 python3 退路。 */
+    shellPath: typeof config?.shellPath === 'string' && config.shellPath.trim() !== ''
+      ? config.shellPath.trim() : undefined
   }
 }
 
